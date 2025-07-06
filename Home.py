@@ -18,9 +18,20 @@ import seaborn as sns
 import io
 
 # ─── PATH SETUP ────────────────────────────────────────────────────────────────
-# Ensure we load data relative to this script's location
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "data", "IntelliStay_Synthetic_Survey_Data.csv")
+
+# two possible locations for the data folder
+paths_to_try = [
+    os.path.join(BASE_DIR, "data", "IntelliStay_Synthetic_Survey_Data.csv"),
+    os.path.join(BASE_DIR, "..", "data", "IntelliStay_Synthetic_Survey_Data.csv"),
+]
+for p in paths_to_try:
+    if os.path.exists(p):
+        DATA_PATH = p
+        break
+else:
+    st.error(f"Could not find data file in {paths_to_try}")
+    st.stop()
 
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="IntelliStay AI Dashboard", layout="wide", page_icon="🏨")
@@ -33,7 +44,7 @@ def load_data(path):
 
 df = load_data(DATA_PATH)
 
-# ─── SIDEBAR NAVIGATION ───────────────────────────────────────────────────────
+# ─── SIDEBAR NAV ───────────────────────────────────────────────────────────────
 page = st.sidebar.radio("Navigate to", [
     "1. Data Visualization",
     "2. Classification",
@@ -56,8 +67,12 @@ if page == "1. Data Visualization":
     # Insight 2: Income vs. Spend
     st.subheader("2. Income vs. Spend per Night")
     fig, ax = plt.subplots()
-    sns.scatterplot(x=df["Annual_Income_USD"], y=df["Average_Spend_Per_Night"],
-                    hue=df["Gender"], ax=ax)
+    sns.scatterplot(
+        x=df["Annual_Income_USD"],
+        y=df["Average_Spend_Per_Night"],
+        hue=df["Gender"],
+        ax=ax
+    )
     st.pyplot(fig)
 
     # Insight 3: Preferred Hotel Type
@@ -69,29 +84,41 @@ if page == "1. Data Visualization":
     # Insight 4: Age by Willingness
     st.subheader("4. Age by Willingness to Stay")
     fig, ax = plt.subplots()
-    sns.boxplot(x=df["Willing_To_Stay_At_IntelliStay"],
-                y=df["Age"], ax=ax)
+    sns.boxplot(
+        x=df["Willing_To_Stay_At_IntelliStay"],
+        y=df["Age"],
+        ax=ax
+    )
     st.pyplot(fig)
 
-    # Insight 5: Mobile Check-In by Occupation
+    # Insight 5: Mobile Check-In Usage
     st.subheader("5. Mobile Check-In Usage by Occupation")
     fig, ax = plt.subplots()
-    sns.countplot(x=df["Mobile_Checkin_Usage"],
-                  hue=df["Occupation"], ax=ax)
+    sns.countplot(
+        x=df["Mobile_Checkin_Usage"],
+        hue=df["Occupation"],
+        ax=ax
+    )
     st.pyplot(fig)
 
     # Insight 6: Comfort vs. Spend
     st.subheader("6. Comfort with Smart Features vs. Spend")
     fig, ax = plt.subplots()
-    sns.boxplot(x=df["Comfort_With_Smart_Features"],
-                y=df["Average_Spend_Per_Night"], ax=ax)
+    sns.boxplot(
+        x=df["Comfort_With_Smart_Features"],
+        y=df["Average_Spend_Per_Night"],
+        ax=ax
+    )
     st.pyplot(fig)
 
-    # Insight 7: Marital Status & Share Preferences
+    # Insight 7: Marital Status & Preferences
     st.subheader("7. Marital Status & Willingness to Share Preferences")
     fig, ax = plt.subplots()
-    sns.countplot(x=df["Marital_Status"],
-                  hue=df["Willing_To_Share_Preferences"], ax=ax)
+    sns.countplot(
+        x=df["Marital_Status"],
+        hue=df["Willing_To_Share_Preferences"],
+        ax=ax
+    )
     st.pyplot(fig)
 
     # Insight 8: Top Challenges
@@ -146,8 +173,8 @@ elif page == "2. Classification":
         "Gradient Boosting": GradientBoostingClassifier()
     }
 
-    # Performance Comparison
-    st.subheader("Model Performance")
+    # Performance Table
+    st.subheader("Model Performance Comparison")
     perf = []
     for name, m in models.items():
         m.fit(X_train, y_train)
@@ -164,13 +191,19 @@ elif page == "2. Classification":
     st.dataframe(pd.DataFrame(perf).round(3))
 
     # Confusion Matrix
-    sel = st.selectbox("Select model for Confusion Matrix", list(models.keys()))
+    sel = st.selectbox("Model for Confusion Matrix", list(models.keys()))
     cm = confusion_matrix(y_test, models[sel].predict(X_test))
     st.subheader(f"Confusion Matrix: {sel}")
     fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
-                xticklabels=le_target.classes_,
-                yticklabels=le_target.classes_)
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=le_target.classes_,
+        yticklabels=le_target.classes_,
+        ax=ax
+    )
     ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
     st.pyplot(fig)
 
@@ -189,25 +222,28 @@ elif page == "2. Classification":
 
     # Upload & Predict
     st.subheader("Upload New Data for Prediction")
-    uploaded = st.file_uploader("CSV (same features, no target)", type="csv")
+    uploaded = st.file_uploader("CSV (features only)", type="csv")
     if uploaded:
         new_df = pd.read_csv(uploaded)
         for col, enc in encoders.items():
             new_df[col] = enc.transform(new_df[col].astype(str).fillna("Unknown"))
         preds = models[sel].predict(new_df)
-        new_df["Predicted_Willingness"] = le_target.inverse_transform(preds)
+        new_df["Predicted"] = le_target.inverse_transform(preds)
         st.dataframe(new_df)
         buf = io.BytesIO()
         new_df.to_csv(buf, index=False)
-        st.download_button("📥 Download Predictions", buf.getvalue(),
-                           file_name="intellistay_predictions.csv")
+        st.download_button(
+            label="📥 Download Predictions",
+            data=buf.getvalue(),
+            file_name="predictions.csv",
+            mime="text/csv"
+        )
 
 
 # ─── 3. CLUSTERING ─────────────────────────────────────────────────────────────
 elif page == "3. Clustering":
     st.header("🧬 K-Means Clustering")
 
-    # Prepare numeric data for clustering
     num_df = df.select_dtypes(include=["int64", "float64"]).copy()
     scaler = StandardScaler()
     Xc = scaler.fit_transform(num_df)
@@ -217,28 +253,31 @@ elif page == "3. Clustering":
     distortions = []
     ks = range(2, 11)
     for k in ks:
-        km = KMeans(n_clusters=k, random_state=42).fit(Xc)
-        distortions.append(km.inertia_)
+        distortions.append(KMeans(n_clusters=k, random_state=42).fit(Xc).inertia_)
     fig, ax = plt.subplots()
     ax.plot(ks, distortions, "o-")
     ax.set_xlabel("Number of Clusters"); ax.set_ylabel("Inertia")
     st.pyplot(fig)
 
     # Cluster Slider
-    n_clusters = st.slider("Select number of clusters", 2, 10, 4)
+    n_clusters = st.slider("Number of Clusters", 2, 10, 4)
     km = KMeans(n_clusters=n_clusters, random_state=42).fit(Xc)
     df["Cluster"] = km.labels_
 
     # Persona Table
-    st.subheader("Cluster Personae (Mean Values)")
+    st.subheader("Cluster Personas (Mean Values)")
     persona = df.groupby("Cluster").mean(numeric_only=True)
     st.dataframe(persona)
 
     # Download Labeled Data
     buf2 = io.BytesIO()
     df.to_csv(buf2, index=False)
-    st.download_button("📥 Download Clustered Data", buf2.getvalue(),
-                       file_name="intellistay_clustered.csv")
+    st.download_button(
+        label="📥 Download Clustered Data",
+        data=buf2.getvalue(),
+        file_name="clustered_data.csv",
+        mime="text/csv"
+    )
 
 
 # ─── 4. ASSOCIATION RULES ───────────────────────────────────────────────────────
@@ -253,22 +292,24 @@ elif page == "4. Association Rules":
     min_sup = st.slider("Min Support", 0.01, 0.5, 0.05)
     min_conf = st.slider("Min Confidence", 0.1, 1.0, 0.3)
 
-    # One-hot encode the selected multi-value columns
-    basket = pd.get_dummies(df[cols].str.get_dummies(sep=", "))
-    freq_items = apriori(basket, min_support=min_sup, use_colnames=True)
-    rules = association_rules(freq_items, metric="confidence", min_threshold=min_conf)
-    top_rules = rules.sort_values("confidence", ascending=False).head(10)
+    basket = pd.get_dummies(
+        df[cols]
+        .str
+        .get_dummies(sep=", ")
+    )
+    freq = apriori(basket, min_support=min_sup, use_colnames=True)
+    rules = association_rules(freq, metric="confidence", min_threshold=min_conf)
+    top10 = rules.sort_values("confidence", ascending=False).head(10)
 
-    st.subheader("Top 10 Association Rules")
-    st.dataframe(top_rules[["antecedents", "consequents", "support", "confidence", "lift"]])
+    st.subheader("Top 10 Rules")
+    st.dataframe(top10[["antecedents", "consequents", "support", "confidence", "lift"]])
 
 
 # ─── 5. REGRESSION INSIGHTS ────────────────────────────────────────────────────
 elif page == "5. Regression Insights":
     st.header("📈 Regression Models & Insights")
 
-    # Prepare regression data
-    reg_df = df.dropna(subset=["Average_Spend_Per_Night", "Annual_Income_USD"])
+    reg_df = df.dropna(subset=["Annual_Income_USD", "Average_Spend_Per_Night"])
     Xr = reg_df[["Annual_Income_USD"]]
     yr = reg_df["Average_Spend_Per_Night"]
 
@@ -279,7 +320,6 @@ elif page == "5. Regression Insights":
         "Decision Tree": DecisionTreeRegressor(max_depth=5)
     }
 
-    # R² Scores
     st.subheader("Model R² Scores")
     scores = []
     for name, mr in models_r.items():
@@ -287,27 +327,24 @@ elif page == "5. Regression Insights":
         scores.append({"Model": name, "R²": mr.score(Xr, yr)})
     st.table(pd.DataFrame(scores))
 
-    # Spend vs Income Chart
-    st.subheader("Predicted Spend vs. Income")
+    st.subheader("Spend vs Income Predictions")
     fig, ax = plt.subplots()
     ax.scatter(reg_df["Annual_Income_USD"], reg_df["Average_Spend_Per_Night"],
-               label="Actual", alpha=0.3)
+               alpha=0.3, label="Actual")
     xs = np.linspace(reg_df["Annual_Income_USD"].min(),
                      reg_df["Annual_Income_USD"].max(), 100).reshape(-1, 1)
     for name, mr in models_r.items():
-        ys = mr.predict(xs)
-        ax.plot(xs, ys, label=name)
+        ax.plot(xs, mr.predict(xs), label=name)
     ax.set_xlabel("Annual Income (USD)"); ax.set_ylabel("Avg Spend/Night")
     ax.legend()
     st.pyplot(fig)
 
-    # Business Insights
-    st.subheader("Business Insights & Interpretation")
+    st.subheader("Business Insights")
     st.markdown("""
-    1. **Linear Model**: Explains base correlation between income and spend.
-    2. **Ridge & Lasso**: Regularization smooths predictions, reducing overfitting in extreme incomes.
-    3. **Decision Tree**: Captures non-linear spend thresholds to inform tiered pricing.
-    4. High-income guests show diminishing marginal spend increases.
-    5. These models combined aid dynamic pricing strategies for maximizing revenue.
+    1. **Linear**: Baseline correlation between income and spend.  
+    2. **Ridge/Lasso**: Regularized fits reduce overfitting at extremes.  
+    3. **Decision Tree**: Captures non-linear spend thresholds for pricing.  
+    4. High-income guests show diminishing marginal spend.  
+    5. Use these insights to optimize dynamic pricing by guest profile.
     """)
 
