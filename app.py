@@ -275,19 +275,38 @@ elif page == "3. Clustering":
 elif page == "4. Association Rules":
     st.header("🔗 Association Rule Mining")
 
-    cols = st.multiselect("Select columns", [
-        "Valued_Aspects", "Smart_Features_Desired", "Common_Challenges"
-    ], default=["Valued_Aspects", "Smart_Features_Desired"])
-    min_sup = st.slider("Min Support", 0.01, 0.5, 0.05)
-    min_conf = st.slider("Min Confidence", 0.1, 1.0, 0.3)
+    # 1) Let user pick which multi‐select columns to mine
+    cols = st.multiselect(
+        "Select columns to mine (comma‐separated values)",
+        ["Valued_Aspects", "Smart_Features_Desired", "Common_Challenges"],
+        default=["Valued_Aspects", "Smart_Features_Desired"]
+    )
+    min_sup  = st.slider("Min Support",    0.01, 0.5, 0.05)
+    min_conf = st.slider("Min Confidence", 0.1,  1.0, 0.3)
 
-    basket = pd.get_dummies(df[cols].str.get_dummies(sep=", "))
-    freq = apriori(basket, min_support=min_sup, use_colnames=True)
-    rules = association_rules(freq, metric="confidence", min_threshold=min_conf)
+    # 2) Build the “basket” by one‐hot encoding each selected column
+    basket = pd.DataFrame()
+    for col in cols:
+        # Each value is a comma‐separated string: we get dummies per choice
+        dummies = df[col] \
+            .str.split(", ") \
+            .explode() \
+            .str.get_dummies() \
+            .groupby(level=0) \
+            .sum()
+        basket = pd.concat([basket, dummies], axis=1)
+
+    # 3) Run Apriori & filter rules
+    frequent_items = apriori(basket, min_support=min_sup, use_colnames=True)
+    rules = association_rules(frequent_items, metric="confidence", min_threshold=min_conf)
+
+    # 4) Show top‐10 by confidence
     top10 = rules.sort_values("confidence", ascending=False).head(10)
+    st.subheader("Top 10 Association Rules")
+    st.dataframe(
+        top10[["antecedents", "consequents", "support", "confidence", "lift"]]
+    )
 
-    st.subheader("Top 10 Rules")
-    st.dataframe(top10[["antecedents", "consequents", "support", "confidence", "lift"]])
 
 # ─── TAB 5: REGRESSION INSIGHTS ────────────────────────────────────────────────
 elif page == "5. Regression Insights":
